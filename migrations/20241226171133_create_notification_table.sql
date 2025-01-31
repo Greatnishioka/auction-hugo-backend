@@ -14,6 +14,15 @@ CREATE TABLE productions (
     product_sold_status INT NOT NULL               
 );
 
+
+
+-- CREATE TABLE notifications (
+--     notification_id SERIAL PRIMARY KEY UNIQUE NOT NULL,
+--     notification_status Number NOT NULL,
+--     notification_title TEXT NOT NULL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
+
 -- 入力例
 -- CREATE TABLE notifications (
 --    notification_id 1,
