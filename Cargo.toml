@@ -19,3 +19,5 @@ serde_json = "1.0.134"
 chrono = { version = "0.4", features = ["serde"] }
 webp = "0.2"
 image = "0.24"
+jsonwebtoken = "9"
+dashmap = "5.4"

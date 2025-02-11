@@ -1,6 +1,11 @@
 use  chrono::NaiveDateTime;
 use serde_json::Value;
 use serde_derive::{Deserialize, Serialize};
+use std::sync::Arc;
+use dashmap::DashMap;
+
+// トークンを保存するためのキャッシュ
+pub type TokenStore = Arc<DashMap<String, String>>;
 
 #[derive(Serialize)]
 pub struct Notification {
@@ -42,4 +47,22 @@ pub struct ProductionParams {
 pub struct SuccessMessage {
     pub status:i32,
     pub message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub id: String,
+    pub enable_time: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LoginResult {
+    pub id: String,
+    pub enable_time: usize,
+    pub token_data: Token,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Token{
+    pub token: String,
 }
