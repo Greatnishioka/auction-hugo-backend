@@ -33,7 +33,7 @@ pub async fn upload_image(mut multipart: Multipart) -> String {
 
     // エラーハンドリングする
     // あとで
-    "ファイルが違う".to_string()
+    "ファイルが違うぜ！".to_string()
 }
 
 async fn save_image(file_path: String) -> Result<String, Box<dyn std::error::Error>> {
@@ -70,6 +70,7 @@ async fn save_image(file_path: String) -> Result<String, Box<dyn std::error::Err
 
 async fn get_s3_client() -> Client {
     // 地域の設定
+    // 特に地域以外は設定する必要はないっぽい
     let region_provider = RegionProviderChain::default_provider().or_else("ap-northeast-1");
     let config = aws_config::from_env().region(region_provider).load().await;
     Client::new(&config)

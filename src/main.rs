@@ -1,22 +1,27 @@
 mod save_image;
 mod types;
+mod auth;
 
 use axum::{
     extract::{Query, State}, response::Json, routing::{get, post}, Router
 };
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use dotenvy::dotenv;
+use std::sync::Arc;
+use dashmap::DashMap;
 
 // 別のスクリプトからインポートしてきた子達
 use save_image::upload_image;
-use types::{
-    Notification, 
+use types::types::{
+    Notification,
     NotificationParams, 
     ProductId, 
-    BidParams, 
+    BidParams,
     ProductionParams, 
-    SuccessMessage
+    SuccessMessage,
+    TokenStore,
 };
+use auth::auth::login;
 
 #[tokio::main]
 async fn main()  {
@@ -28,6 +33,7 @@ async fn main()  {
     .connect(&database_url)
     .await
     .expect("Failed to connect to database");
+    let token_store: TokenStore = Arc::new(DashMap::new());
 
     // Router
     let app = Router::new()
@@ -37,6 +43,9 @@ async fn main()  {
         .route("/api/v1/production/bid", post(bid_auction))
         .route("/api/v1/production/list", get(get_productions_list))
         .route("/api/v1/convenient/saveImage", post(upload_image))
+        .route("/api/v1/auth/login", get({
+            let token_store = token_store.clone();
+            move || login(State(token_store))}))
         // secretは全てあとで***絶対に***消す
         .route("/api/v1/secret/deleteTabele", get(clear_table))
         .with_state(pool);
@@ -46,6 +55,7 @@ async fn main()  {
     axum::serve(listener, app).await.unwrap();
 }
 
+// あとでnotification.rsを作って移動する。
 async  fn process_notification(Query(params): Query<NotificationParams>) 
 -> Result<Json<Notification>, String> {
     println!("Notification ID: {}", params.notification_int);
@@ -60,6 +70,7 @@ async  fn process_notification(Query(params): Query<NotificationParams>)
         Ok(Json(notification))
 }
 
+// これはリリース前に絶対消す。
 async fn clear_table(State(pool): State<PgPool>) -> Result<Json<SuccessMessage>, String> {
     sqlx::query!("DELETE FROM productions")
         .execute(&pool)
@@ -69,6 +80,7 @@ async fn clear_table(State(pool): State<PgPool>) -> Result<Json<SuccessMessage>,
     Ok(Json(SuccessMessage{status:200,message:"Table cleared successfully".to_string()}))
 }
 
+// オークション作成API
 async fn create_production(State(pool): State<PgPool>,Json(body_params): Json<ProductionParams>) -> Result<Json<SuccessMessage>, String> {
 
     sqlx::query!(
@@ -136,6 +148,8 @@ async fn bid_auction(State(pool): State<PgPool>,Json(body_params): Json<BidParam
     Ok(Json(SuccessMessage{status:200,message:"success".to_string()}))
 }
 
+// オークション一覧取得API
+// もっとユーザーの興味に合わせたリストにする
 async fn get_productions_list(State(pool): State<PgPool>) -> Result<Json<Vec<ProductionParams>>, String> {
     let rows = sqlx::query_as!(
         ProductionParams,
