@@ -3,6 +3,7 @@ use serde_json::Value;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::Arc;
 use dashmap::DashMap;
+use sqlx::PgPool;
 
 // トークンを保存するためのキャッシュ
 pub type TokenStore = Arc<DashMap<String, String>>;
@@ -65,4 +66,9 @@ pub struct LoginResult {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Token{
     pub token: String,
+}
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub token_store: Arc<DashMap<String, String>>,
 }

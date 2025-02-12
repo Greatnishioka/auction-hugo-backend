@@ -16,7 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const SECRET_KEY: &[u8] = b"";
 
 // ログイン
-// todo: 現在は固定のユーザーIDを使っているが、実際はDBなどから取得する
+// todo: 現在は固定のユーザーIDを使っているが、実際はDBなどから取得する。
+// と言うか認証機能が今は完成していない。
 pub async fn login(token_store: State<TokenStore>) -> Result<Json<LoginResult>, String> {
     let token = generate_token("user123");
     token_store.insert("user123".to_string(), token.clone());
@@ -28,7 +29,6 @@ pub async fn login(token_store: State<TokenStore>) -> Result<Json<LoginResult>, 
             token
         },
     }))
-    //format!("Bearer {}", token)
 }
 
 // トークンを発行する関数
@@ -45,6 +45,7 @@ fn generate_token(user_id: &str) -> String {
 
 // トークンを検証して、新しいトークンを発行する
 // リフレッシュトークンとしてAPI化する？？
+// と言うかそもそもいる？？この関数
 pub fn verify_and_refresh_token(token: &str, token_store: &TokenStore) -> Option<String> {
     let token_data = decode::<Claims>(
         token,
@@ -57,7 +58,7 @@ pub fn verify_and_refresh_token(token: &str, token_store: &TokenStore) -> Option
     // 古いトークンが登録されているか確認
     if let Some(existing_token) = token_store.get(&user_id) {
         if existing_token.value() != token {
-            return None; // トークンが一致しない場合、不正とみなす
+            return None;
         }
     }
 

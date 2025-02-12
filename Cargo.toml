@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7", features = ["macros","multipart"] }
+axum = { version = "0.7.7", features = ["macros","multipart"] }
 hyper = { version = "0.14", features = ["full", "server"] }
 sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls","chrono", "time"] }
 dotenvy = "0.15"
@@ -19,5 +19,7 @@ serde_json = "1.0.134"
 chrono = { version = "0.4", features = ["serde"] }
 webp = "0.2"
 image = "0.24"
-jsonwebtoken = "9"
+jsonwebtoken = "9.2"
 dashmap = "5.4"
+headers = "0.3"
+axum-extra = { version = "0.9", features = ["typed-header"] }
