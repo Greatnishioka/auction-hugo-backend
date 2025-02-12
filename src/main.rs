@@ -3,15 +3,20 @@ mod types;
 mod auth;
 
 use axum::{
-    extract::{Query, State}, response::Json, routing::{get, post}, Router
+    extract::{Query, State,},
+    response::Json,
+    routing::{get, post},
+    Router,
 };
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use axum_extra::headers::{Authorization, authorization::Bearer};
+use sqlx::postgres::PgPoolOptions;
 use dotenvy::dotenv;
 use std::sync::Arc;
 use dashmap::DashMap;
-
+use axum_extra::TypedHeader;
 // 別のスクリプトからインポートしてきた子達
-use save_image::upload_image;
+
+// インポートしてきた型
 use types::types::{
     Notification,
     NotificationParams, 
@@ -20,7 +25,11 @@ use types::types::{
     ProductionParams, 
     SuccessMessage,
     TokenStore,
+    AppState,
 };
+
+// インポートしてきた関数
+use save_image::upload_image;
 use auth::auth::login;
 
 #[tokio::main]
@@ -30,14 +39,20 @@ async fn main()  {
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
-    .connect(&database_url)
-    .await
-    .expect("Failed to connect to database");
+        .connect(&database_url)
+        .await
+        .expect("Failed to connect to database");
+
     let token_store: TokenStore = Arc::new(DashMap::new());
+
+    let state = Arc::new(AppState {  
+        pool,
+        token_store: token_store.clone(),
+    });
 
     // Router
     let app = Router::new()
-        .route("/api/v1/notification/check",get(process_notification))
+        .route("/api/v1/notification/check", get(process_notification))
         .route("/api/v1/production/create", post(create_production))
         .route("/api/v1/production/getDetail", post(get_production))
         .route("/api/v1/production/bid", post(bid_auction))
@@ -45,10 +60,10 @@ async fn main()  {
         .route("/api/v1/convenient/saveImage", post(upload_image))
         .route("/api/v1/auth/login", get({
             let token_store = token_store.clone();
-            move || login(State(token_store))}))
-        // secretは全てあとで***絶対に***消す
+            move || login(State(token_store))
+        }))
         .route("/api/v1/secret/deleteTabele", get(clear_table))
-        .with_state(pool);
+        .with_state(state.clone());  // ✅ `state` (Arc<AppState>) を渡す
 
     // サーバの起動
     let listener = tokio::net::TcpListener::bind("0.0.0.0:1234").await.unwrap();
@@ -71,9 +86,9 @@ async  fn process_notification(Query(params): Query<NotificationParams>)
 }
 
 // これはリリース前に絶対消す。
-async fn clear_table(State(pool): State<PgPool>) -> Result<Json<SuccessMessage>, String> {
+async fn clear_table(State(state): State<Arc<AppState>>) -> Result<Json<SuccessMessage>, String> {
     sqlx::query!("DELETE FROM productions")
-        .execute(&pool)
+        .execute(&state.pool)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -81,7 +96,18 @@ async fn clear_table(State(pool): State<PgPool>) -> Result<Json<SuccessMessage>,
 }
 
 // オークション作成API
-async fn create_production(State(pool): State<PgPool>,Json(body_params): Json<ProductionParams>) -> Result<Json<SuccessMessage>, String> {
+async fn create_production(
+    State(state): State<Arc<AppState>>,
+    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
+    Json(body_params): Json<ProductionParams>
+) -> Result<Json<SuccessMessage>, String> {
+
+    // let token = bearer.token();
+
+    // let user_id = "user123"; // 実際にはトークンからユーザーIDを抽出する必要があります
+    // if verify_token(token_store.clone(), user_id.to_string(), token.to_string()).is_none() {
+    //     return Err("Invalid token".to_string());
+    // }
 
     sqlx::query!(
         "INSERT INTO productions (product_title, product_image_url, product_price, product_openprice, product_tags, product_text, product_thresholds, product_sold_status) VALUES ($1, $2, $3, $4, $5, $6, $7 ,$8)", 
@@ -93,7 +119,7 @@ async fn create_production(State(pool): State<PgPool>,Json(body_params): Json<Pr
         serde_json::json!(body_params.product_text),
         serde_json::json!(body_params.product_thresholds),
         0)
-        .execute(&pool)
+        .execute(&state.pool)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -102,7 +128,7 @@ async fn create_production(State(pool): State<PgPool>,Json(body_params): Json<Pr
 }
 
 #[axum::debug_handler]
-async fn get_production(State(pool): State<PgPool>,Json(body_params): Json<ProductId>) -> Result<Json<ProductionParams>, String> {
+async fn get_production(State(state): State<Arc<AppState>>,Json(body_params): Json<ProductId>) -> Result<Json<ProductionParams>, String> {
 
     let row = sqlx::query_as!(
         ProductionParams,
@@ -123,7 +149,7 @@ async fn get_production(State(pool): State<PgPool>,Json(body_params): Json<Produ
         "#,
         body_params.product_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -131,7 +157,7 @@ async fn get_production(State(pool): State<PgPool>,Json(body_params): Json<Produ
 }
 
 
-async fn bid_auction(State(pool): State<PgPool>,Json(body_params): Json<BidParams>) -> Result<Json<SuccessMessage>, String> {
+async fn bid_auction(State(state): State<Arc<AppState>>,Json(body_params): Json<BidParams>) -> Result<Json<SuccessMessage>, String> {
     sqlx::query!(
         r#"
         UPDATE productions
@@ -141,7 +167,7 @@ async fn bid_auction(State(pool): State<PgPool>,Json(body_params): Json<BidParam
         body_params.bid_price,
         body_params.product_id
     )
-    .fetch_one(&pool)
+    .fetch_one(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
 
@@ -150,7 +176,7 @@ async fn bid_auction(State(pool): State<PgPool>,Json(body_params): Json<BidParam
 
 // オークション一覧取得API
 // もっとユーザーの興味に合わせたリストにする
-async fn get_productions_list(State(pool): State<PgPool>) -> Result<Json<Vec<ProductionParams>>, String> {
+async fn get_productions_list(State(state): State<Arc<AppState>>) -> Result<Json<Vec<ProductionParams>>, String> {
     let rows = sqlx::query_as!(
         ProductionParams,
         r#"
@@ -168,7 +194,7 @@ async fn get_productions_list(State(pool): State<PgPool>) -> Result<Json<Vec<Pro
         FROM productions
         "#
     )
-    .fetch_all(&pool)
+    .fetch_all(&state.pool)
     .await
     .map_err(|e| e.to_string())?;
     println!("{:?}", rows[0].product_tags);
