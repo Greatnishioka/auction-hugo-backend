@@ -14,7 +14,7 @@ use dotenvy::dotenv;
 use std::sync::Arc;
 use dashmap::DashMap;
 use axum_extra::TypedHeader;
-// 別のスクリプトからインポートしてきた子達
+use tower_http::cors::{CorsLayer, Any};
 
 // インポートしてきた型
 use types::types::{
@@ -50,6 +50,12 @@ async fn main()  {
         token_store: token_store.clone(),
     });
 
+    // CORS設定
+    let cors = CorsLayer::new()
+    .allow_origin(Any)  // 必要に応じて特定のオリジンに制限することができます
+    .allow_methods(Any)
+    .allow_headers(Any);
+
     // Router
     let app = Router::new()
         .route("/api/v1/notification/check", get(process_notification))
@@ -63,7 +69,10 @@ async fn main()  {
             move || login(State(token_store))
         }))
         .route("/api/v1/secret/deleteTabele", get(clear_table))
-        .with_state(state.clone());  // ✅ `state` (Arc<AppState>) を渡す
+        // ここでstateを渡している
+        // ここでstateを渡せないときは多分各APIでstateを受け取らないようになっている。
+        .layer(cors)
+        .with_state(state.clone());
 
     // サーバの起動
     let listener = tokio::net::TcpListener::bind("0.0.0.0:1234").await.unwrap();
