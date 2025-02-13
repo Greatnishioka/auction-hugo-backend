@@ -79,6 +79,16 @@ async fn main()  {
     axum::serve(listener, app).await.unwrap();
 }
 
+// トークンを検証する関数
+fn verify_token(token_store: Arc<DashMap<String, String>>, user_id: String, token: String) -> Option<String> {
+    if let Some(stored_token) = token_store.get(&user_id) {
+        if *stored_token == token {
+            return Some(user_id);
+        }
+    }
+    None
+}
+
 // あとでnotification.rsを作って移動する。
 async  fn process_notification(Query(params): Query<NotificationParams>) 
 -> Result<Json<Notification>, String> {
@@ -111,12 +121,12 @@ async fn create_production(
     Json(body_params): Json<ProductionParams>
 ) -> Result<Json<SuccessMessage>, String> {
 
-    // let token = bearer.token();
+    let token = bearer.token();
 
-    // let user_id = "user123"; // 実際にはトークンからユーザーIDを抽出する必要があります
-    // if verify_token(token_store.clone(), user_id.to_string(), token.to_string()).is_none() {
-    //     return Err("Invalid token".to_string());
-    // }
+    let user_id = "user123"; // 実際にはトークンからユーザーIDを抽出する必要があります
+    if verify_token(state.token_store.clone(), user_id.to_string(), token.to_string()).is_none() {
+        return Err("Invalid token".to_string());
+    }
 
     sqlx::query!(
         "INSERT INTO productions (product_title, product_image_url, product_price, product_openprice, product_tags, product_text, product_thresholds, product_sold_status) VALUES ($1, $2, $3, $4, $5, $6, $7 ,$8)", 
